@@ -240,14 +240,12 @@ class App(customtkinter.CTk):
                     previous_ip = server.get_previous_ip(self.api_email, self.api_key, zone_id, DNS_id)
                     if current_ip != previous_ip: 
                         server.update_dns(self.api_email, self.api_key, current_ip, zone_id, DNS_name, DNS_id)
-                        print("Cloudflare IP address updated to " + current_ip)
+                        messagebox.showinfo("Success!","Cloudflare IP address updated to " + current_ip)
                     else:
-                        print("IP address has not changed. No update required.")
-    
-            
-        
+                        messagebox.showinfo("","IP address has not changed. No update required.")
+
         self.destroy()
-    
+
     # Constructor for App
     def __init__(self):
         super().__init__()

@@ -43,8 +43,8 @@ def get_zone_id(api_email, api_key, domain_name):
             if dict["name"] == domain_name:
                 return dict["id"]
     else:
-        print("Failed to list Cloudflare DNS records.")
-        print("Response:", response.text) 
+        #print("Failed to list Cloudflare DNS records.")
+        #print("Response:", response.text) 
         return None
 
 # Return list of all domains under account
@@ -64,8 +64,8 @@ def get_domains(api_email, api_key) -> list():
             name_list.append(dict["name"])
         return name_list
     else:
-        print("Failed to list Cloudflare DNS records.")
-        print("Response:", response.text) 
+        #print("Failed to list Cloudflare DNS records.")
+        #print("Response:", response.text) 
         return None
 
 # Return dictionary of all DNS records and IDs
@@ -87,8 +87,8 @@ def get_dns_id(api_email, api_key, zone_id) -> dict():
             results[dict["name"]] = dict["id"]
         return results
     else:
-        print("Failed to list Cloudflare DNS records.")
-        print("Response:", response.text)
+        #print("Failed to list Cloudflare DNS records.")
+        #print("Response:", response.text)
         return None
 
 # Update the Cloudflare DNS record with the new IP address
@@ -106,9 +106,3 @@ def update_dns(api_email, api_key, new_ip, zone_id, record_name, id):
         "type": "A"
     }
     response = requests.put(url, headers=headers, json=data)
-    
-    if response.status_code == 200:
-        print("Cloudflare DNS record updated successfully.")
-    else:
-        print("Failed to update Cloudflare DNS record.")
-        print("Response:", response.text)  

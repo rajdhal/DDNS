@@ -22,16 +22,32 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install pyinstaller
-        pip install customtkinter
-        pip install requests
 
     - name: Build Executable
       run: pyinstaller --onefile App.py
 
-    - name: Create Release and Upload Executable
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      with:
+        tag_name: v1.0.0  # Replace with your desired tag name
+        release_name: Release 1.0.0  # Replace with your desired release name
+        draft: false
+        prerelease: false
+
+    - name: Get Upload URL
+      id: get_upload_url
+      run: echo "::set-output name=upload_url::$(jq -r '.upload_url' $GITHUB_EVENT_PATH | sed -e 's/{?name,label}//')"
+      shell: bash
+      env:
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+
+    - name: Upload Executable
       uses: actions/upload-release-asset@v1
       with:
-        upload_url: ${{ github.event.release.upload_url }}
+        upload_url: ${{ steps.get_upload_url.outputs.upload_url }}
         asset_path: ./dist/App.exe
         asset_name: App.exe
         asset_content_type: application/x-msdownload

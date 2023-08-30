@@ -1,4 +1,4 @@
-name: Build Executable
+name: Build and Release
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.10  # Specify the Python version you need
+        python-version: 3.x
 
     - name: Install Dependencies
       run: |
@@ -27,3 +27,13 @@ jobs:
 
     - name: Build Executable
       run: pyinstaller --onefile App.py
+
+    - name: Create Release and Upload Executable
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./dist/App.exe
+        asset_name: App.exe
+        asset_content_type: application/x-msdownload
+      env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}

@@ -1,4 +1,4 @@
-# Cloudflare DDNS for Minecraft Servers
+# Cloudflare DDNS Updater Application
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 

@@ -1,108 +1,146 @@
-import requests
-import json
+"""Cloudflare API client for DDNS operations."""
 
-# Update config.json with credentials
-def update_data(data):
-    with open("config.json", "w") as f:
+import json
+import logging
+from typing import Optional
+
+import requests
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Constants
+CONFIG_FILE = "config.json"
+CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
+IP_SERVICE_URL = "https://api.ipify.org"
+REQUEST_TIMEOUT = 30
+
+
+class CloudflareAPIError(Exception):
+    """Custom exception for Cloudflare API errors."""
+    pass
+
+
+def _build_headers(api_email: str, api_key: str) -> dict:
+    """Build authentication headers for Cloudflare API requests."""
+    return {
+        "X-Auth-Email": api_email,
+        "Authorization": api_key,
+        "Content-Type": "application/json"
+    }
+
+
+def update_data(data: dict) -> None:
+    """Save credentials to config file."""
+    with open(CONFIG_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# Obtain current external IP address
-def get_current_ip():
-    ipaddr = requests.get('https://api.ipify.org').text.strip()
-    return ipaddr
 
-# Obtain previous IP from DNS records
-def get_previous_ip(api_email, api_key, zone_id, id):
-    # GET Request for DNS records https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-dns-record-details
-    headers = {
-        "X-Auth-Email": api_email,
-        "Authorization": api_key,
-        "Content-Type": "application/json"
-    }
-    url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{id}"
-    response = requests.get(url, headers=headers)
-    o = response.json()
-    if response.status_code == 200:
-        return o["result"]["content"]
-    else:
+def load_config() -> Optional[dict]:
+    """Load credentials from config file."""
+    try:
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
         return None
 
-# Return Zone ID of domain
-def get_zone_id(api_email, api_key, domain_name):
-    # Get Zones of Domain https://developers.cloudflare.com/api/operations/zones-get
-    headers = {
-        "X-Auth-Email": api_email,
-        "Authorization": api_key,
-        "Content-Type": "application/json"
-    }
-    url = f"https://api.cloudflare.com/client/v4/zones/"
-    response = requests.get(url, headers=headers)
-    o=response.json()
-    if response.status_code == 200:
-        for dict in o["result"]:
-            if dict["name"] == domain_name:
-                return dict["id"]
-    else:
-        #print("Failed to list Cloudflare DNS records.")
-        #print("Response:", response.text) 
+
+def get_current_ip() -> Optional[str]:
+    """Fetch current external IP address from ipify service."""
+    try:
+        response = requests.get(IP_SERVICE_URL, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        return response.text.strip()
+    except requests.RequestException as e:
+        logger.error(f"Failed to get current IP: {e}")
         return None
 
-# Return list of all domains under account
-def get_domains(api_email, api_key) -> list():
-    # Get Domains https://developers.cloudflare.com/api/operations/zones-get
-    headers = {
-        "X-Auth-Email": api_email,
-        "Authorization": api_key,
-        "Content-Type": "application/json"
-    }
-    url = f"https://api.cloudflare.com/client/v4/zones/"
-    response = requests.get(url, headers=headers)
-    o=response.json()
-    if response.status_code == 200:
-        name_list = []
-        for dict in o["result"]:
-            name_list.append(dict["name"])
-        return name_list
-    else:
-        #print("Failed to list Cloudflare DNS records.")
-        #print("Response:", response.text) 
-        return None
 
-# Return dictionary of all DNS records and IDs
-def get_dns_id(api_email, api_key, zone_id) -> dict():
-    # List DNS Records https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-list-dns-records
-    headers = {
-        "X-Auth-Email": api_email,
-        "Authorization": api_key,
-        "Content-Type": "application/json",
-    }
-    url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records"
+def get_previous_ip(api_email: str, api_key: str, zone_id: str, dns_id: str) -> Optional[str]:
+    """Get the current IP address stored in a DNS record."""
+    headers = _build_headers(api_email, api_key)
+    url = f"{CLOUDFLARE_API_BASE}/zones/{zone_id}/dns_records/{dns_id}"
     
-    response = requests.get(url, headers=headers)
-    o=response.json()
-    # response has a list of dictionaries, keys being id, name, type
-    if response.status_code == 200:
-        results = {}
-        for dict in o["result"]:
-            results[dict["name"]] = dict["id"]
-        return results
-    else:
-        #print("Failed to list Cloudflare DNS records.")
-        #print("Response:", response.text)
+    try:
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("result", {}).get("content")
+    except requests.RequestException as e:
+        logger.error(f"Failed to get DNS record: {e}")
         return None
 
-# Update the Cloudflare DNS record with the new IP address
-def update_dns(api_email, api_key, new_ip, zone_id, record_name, id):
-    # Update DNS Record https://developers.cloudflare.com/api/operations/dns-records-for-a-zone-update-dns-record
-    headers = {
-        "X-Auth-Email": api_email,
-        "Authorization": api_key,
-        "Content-Type": "application/json"
-    }
-    url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{id}"
-    data = {
+
+def get_zone_id(api_email: str, api_key: str, domain_name: str) -> Optional[str]:
+    """Get the Zone ID for a domain name."""
+    headers = _build_headers(api_email, api_key)
+    url = f"{CLOUDFLARE_API_BASE}/zones/"
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+        
+        for zone in data.get("result", []):
+            if zone.get("name") == domain_name:
+                return zone.get("id")
+        return None
+    except requests.RequestException as e:
+        logger.error(f"Failed to get zone ID: {e}")
+        return None
+
+
+def get_domains(api_email: str, api_key: str) -> Optional[list]:
+    """Get list of all domain names on the Cloudflare account."""
+    headers = _build_headers(api_email, api_key)
+    url = f"{CLOUDFLARE_API_BASE}/zones/"
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+        return [zone.get("name") for zone in data.get("result", [])]
+    except requests.RequestException as e:
+        logger.error(f"Failed to get domains: {e}")
+        return None
+
+
+def get_dns_records(api_email: str, api_key: str, zone_id: str) -> Optional[dict]:
+    """Get dictionary of DNS record names to IDs for a zone."""
+    headers = _build_headers(api_email, api_key)
+    url = f"{CLOUDFLARE_API_BASE}/zones/{zone_id}/dns_records"
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+        return {record.get("name"): record.get("id") for record in data.get("result", [])}
+    except requests.RequestException as e:
+        logger.error(f"Failed to get DNS records: {e}")
+        return None
+
+
+def update_dns(api_email: str, api_key: str, new_ip: str, zone_id: str, 
+               record_name: str, dns_id: str) -> bool:
+    """Update a DNS A record with a new IP address. Returns True on success."""
+    headers = _build_headers(api_email, api_key)
+    url = f"{CLOUDFLARE_API_BASE}/zones/{zone_id}/dns_records/{dns_id}"
+    payload = {
         "content": new_ip,
         "name": record_name,
         "type": "A"
     }
-    response = requests.put(url, headers=headers, json=data)
+    
+    try:
+        response = requests.put(url, headers=headers, json=payload, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        logger.info(f"Updated DNS record {record_name} to {new_ip}")
+        return True
+    except requests.RequestException as e:
+        logger.error(f"Failed to update DNS record: {e}")
+        return False
+
+
+# Backwards compatibility alias
+get_dns_id = get_dns_records
